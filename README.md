@@ -1,5 +1,7 @@
 # aws_ec2_tailscale
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 EC2 micro インスタンスを Tailscale **exit node** として動かし、Elastic IP を
 擬似固定 IP として使う最小構成。**外部からのインバウンドポートは 0**。
 SSH は Tailscale SSH 経由、緊急時は SSM Session Manager。
@@ -119,10 +121,26 @@ Tailscale が壊れた・誤って `tailscale down` した時の保険。
 
 Tailscale 側の machine は手動削除 ([admin → Machines](https://login.tailscale.com/admin/machines))。
 
+## 免責事項 (Disclaimer)
+
+- 本リポジトリは **個人の検証用サンプル** として公開しているもので、サポート・SLA・本番運用保証は一切ありません。
+- 利用によって発生する **AWS の課金・通信料金・Tailscale の利用料**、その他いかなる費用も利用者の負担です。`destroy` し忘れによる継続課金にご注意ください。
+- 本コードを利用したことで生じた **直接・間接の損害 (情報漏えい、サービス停止、課金事故、法的問題等) について作者は一切の責任を負いません**。MIT License の "AS IS" 条項に従います。
+- 利用にあたっては **AWS 利用規約 / Tailscale Terms of Service / 各国法令** を遵守してください。exit node を経由した通信は最終的に当該 EC2 の IP から送信されるため、Tailscale や AWS のアクセプタブルユースポリシーに違反する用途には使用しないでください。
+- 本リポジトリは **AWS / Tailscale 公式とは無関係** です。各サービス名は各社の商標です。
+- 本番運用前に必ず **IAM 権限、SG、SSM パラメータの設計、auth key 管理方針、ログ取得要件** をご自身のセキュリティ基準で再評価してください。
+
+## ライセンス
+
+[MIT License](./LICENSE) — Copyright (c) 2026 morimorijap
+
 ## ディレクトリ
 
 ```
 .
+├── LICENSE                    # MIT
+├── README.md
+├── .env.example               # .env のテンプレート
 ├── .env                       # tailscale_authkey (git ignored)
 ├── scripts/
 │   └── tf.sh                  # .env -> TF_VAR_* 変換ラッパー
