@@ -1,0 +1,44 @@
+{
+  "security.workspace.trust.enabled": false,
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true,
+    "**/.venv": true,
+    "**/node_modules": true,
+    "**/.pnpm-store": true,
+    "**/.next": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/.playwright-mcp": true,
+    "**/.vercel": true,
+    "**/.devcontainer": true
+  },
+  "files.watcherExclude": {
+    "**/__pycache__/**": true,
+    "**/.venv/**": true,
+    "**/node_modules/**": true,
+    "**/.pnpm-store/**": true,
+    "**/.next/**": true,
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/.git/objects/**": true,
+    "**/target/**": true,
+    "**/.playwright-mcp/**": true,
+    "**/.vercel/**": true,
+    "**/.devcontainer/**": true
+  },
+  "search.exclude": {
+    "**/__pycache__": true,
+    "**/.venv": true,
+    "**/node_modules": true,
+    "**/.pnpm-store": true,
+    "**/.next": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/uv.lock": true,
+    "**/package-lock.json": true,
+    "**/.playwright-mcp": true,
+    "**/.vercel": true,
+    "**/.devcontainer": true
+  }
+}

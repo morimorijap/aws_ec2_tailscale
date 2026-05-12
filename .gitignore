@@ -1,0 +1,37 @@
+# Environment files (never commit real values)
+.env
+.env.*
+!.env.example
+!.env.*.example
+.envrc
+.dev.vars
+
+# Cloud and local credentials
+.aws/
+.azure/
+.gcloud/
+gcloud-config/
+credentials.json
+**/serviceAccount*.json
+**/service-account*.json
+**/*-firebase-adminsdk-*.json
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
+# Agent-local state
+.claude/settings.local.json
+.codex/
+.gemini/
+
+# Build / cache
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
