@@ -87,6 +87,14 @@ iOS / Android はアプリの "Exit Node" メニューから選択。
 curl ifconfig.me   # → terraform output の public_ip と一致するはず
 ```
 
+## 現在の Public IP (Elastic IP) を確認
+
+```bash
+./scripts/tf.sh output -raw public_ip
+```
+
+`apply` 後の output 値そのもの。EIP は `destroy` するまで変わりません。
+
 ## アクセス手段
 
 ### Tailscale SSH (常用)
