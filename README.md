@@ -101,13 +101,31 @@ curl ifconfig.me   # → terraform output の public_ip と一致するはず
 (EBS と EIP は付与されている限り常時課金、計 ~$4/月)。
 
 ```bash
-./scripts/up.sh     # 起動 (running になるまで wait)
-./scripts/down.sh   # 停止 (stopped になるまで wait)
+./scripts/up.sh      # 起動
+# ... 使う ...
+./scripts/down.sh    # 停止
 ```
 
 Tailscale daemon は systemd で auto-start に入っているので、`up.sh` 後
-30 秒ほどで tailnet に再登場します。`down.sh` 後はクライアント側で
-`tailscale set --exit-node=` を空にしておくと安全。
+30 秒ほどで tailnet に再登場します。
+
+### exit node を使っている時の注意点
+
+- **`down.sh` の前後でクライアントの exit-node 設定を外す**: `--exit-node=aws-exit-node` のまま EC2 を止めると、止まった node に通信を投げ続けてインターネットが繋がらなくなります。
+  ```bash
+  tailscale set --exit-node=     # 解除 (down の前 or 後すぐ)
+  ```
+  iOS / Android はアプリの "Exit Node" メニューで OFF。
+- **Tailscale admin 画面の表示は遅れる**: `down.sh` 直後に [admin → Machines](https://login.tailscale.com/admin/machines) を見ると暫く "Connected" のままに見えますが、これは keepalive のタイムアウト待ち (5〜15 分)。AWS 側で本当に止まっているかは下記で確認できます。
+  ```bash
+  aws ec2 describe-instances \
+    --instance-ids $(./scripts/tf.sh output -raw instance_id) \
+    --region     $(./scripts/tf.sh output -raw aws_region) \
+    --query 'Reservations[0].Instances[0].State.Name' --output text
+  # → stopped / running / stopping / pending
+  ```
+  `up.sh` / `down.sh` が表示する `current state:` 行も同じ値です。
+- **public IP (EIP) は止めても保持**: 再起動しても同じ IP。EIP の課金は停止中でも発生 (~$3.6/月)。完全に課金を消したい場合は `./scripts/tf.sh destroy`。
 
 > **Note:** 既に `apply` 済みの場合、`aws_region` output が追加されたので
 > `./scripts/tf.sh apply` を一度走らせて output を refresh してください
