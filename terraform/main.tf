@@ -123,6 +123,14 @@ resource "aws_instance" "exit_node" {
     encrypted   = true
   }
 
+  lifecycle {
+    # AMI lookup uses most_recent = true, so Amazon publishing a new AL2023
+    # image would otherwise force a full instance replacement on every apply.
+    # Bump manually by tainting or replacing the resource when you want a
+    # refresh; dnf-automatic handles in-place security patches in the meantime.
+    ignore_changes = [ami]
+  }
+
   tags = {
     Name = var.project_name
   }

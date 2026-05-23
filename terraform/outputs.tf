@@ -3,6 +3,11 @@ output "instance_id" {
   value       = aws_instance.exit_node.id
 }
 
+output "aws_region" {
+  description = "AWS region the exit node lives in"
+  value       = var.aws_region
+}
+
 output "public_ip" {
   description = "Fixed public IP (Elastic IP) — the pseudo-static IP your traffic will exit from"
   value       = aws_eip.exit_node.public_ip

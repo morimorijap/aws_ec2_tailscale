@@ -40,4 +40,13 @@ if [[ -z "${AWS_ACCESS_KEY_ID:-}" ]]; then
 fi
 
 cd "$TF_DIR"
-exec terraform "$@"
+
+if command -v terraform >/dev/null 2>&1; then
+  exec terraform "$@"
+elif command -v tofu >/dev/null 2>&1; then
+  exec tofu "$@"
+else
+  echo "ERROR: neither 'terraform' nor 'tofu' found in PATH." >&2
+  echo "Install one:  brew install opentofu   # or  brew install hashicorp/tap/terraform" >&2
+  exit 127
+fi

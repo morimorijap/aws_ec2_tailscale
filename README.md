@@ -95,6 +95,24 @@ curl ifconfig.me   # → terraform output の public_ip と一致するはず
 
 `apply` 後の output 値そのもの。EIP は `destroy` するまで変わりません。
 
+## 使う時だけ起動する (start/stop)
+
+`destroy` せずインスタンスだけ stop すれば compute 料金はゼロになります
+(EBS と EIP は付与されている限り常時課金、計 ~$4/月)。
+
+```bash
+./scripts/up.sh     # 起動 (running になるまで wait)
+./scripts/down.sh   # 停止 (stopped になるまで wait)
+```
+
+Tailscale daemon は systemd で auto-start に入っているので、`up.sh` 後
+30 秒ほどで tailnet に再登場します。`down.sh` 後はクライアント側で
+`tailscale set --exit-node=` を空にしておくと安全。
+
+> **Note:** 既に `apply` 済みの場合、`aws_region` output が追加されたので
+> `./scripts/tf.sh apply` を一度走らせて output を refresh してください
+> (リソース変更はありません)。
+
 ## アクセス手段
 
 ### Tailscale SSH (常用)
@@ -151,7 +169,9 @@ Tailscale 側の machine は手動削除 ([admin → Machines](https://login.tai
 ├── .env.example               # .env のテンプレート
 ├── .env                       # tailscale_authkey (git ignored)
 ├── scripts/
-│   └── tf.sh                  # .env -> TF_VAR_* 変換ラッパー
+│   ├── tf.sh                  # .env -> TF_VAR_* 変換ラッパー
+│   ├── up.sh                  # EC2 を start (使う時)
+│   └── down.sh                # EC2 を stop (使い終わったら)
 └── terraform/
     ├── versions.tf
     ├── variables.tf
