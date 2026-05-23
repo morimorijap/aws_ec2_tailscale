@@ -41,12 +41,15 @@ fi
 
 cd "$TF_DIR"
 
-if command -v terraform >/dev/null 2>&1; then
-  exec terraform "$@"
-elif command -v tofu >/dev/null 2>&1; then
+# Prefer 'tofu' because the lockfile in this repo is pinned to
+# registry.opentofu.org. Falling back to 'terraform' will work but may
+# re-write .terraform.lock.hcl on first init/apply.
+if command -v tofu >/dev/null 2>&1; then
   exec tofu "$@"
+elif command -v terraform >/dev/null 2>&1; then
+  exec terraform "$@"
 else
-  echo "ERROR: neither 'terraform' nor 'tofu' found in PATH." >&2
+  echo "ERROR: neither 'tofu' nor 'terraform' found in PATH." >&2
   echo "Install one:  brew install opentofu   # or  brew install hashicorp/tap/terraform" >&2
   exit 127
 fi

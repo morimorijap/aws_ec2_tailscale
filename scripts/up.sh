@@ -7,7 +7,12 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TF="${ROOT_DIR}/scripts/tf.sh"
 
-INSTANCE_ID="$("$TF" output -raw instance_id)"
+INSTANCE_ID="$("$TF" output -raw instance_id 2>/dev/null || true)"
+if [[ -z "$INSTANCE_ID" ]]; then
+  echo "ERROR: instance_id not found in terraform state." >&2
+  echo "       Run './scripts/tf.sh apply' first to create the instance." >&2
+  exit 1
+fi
 REGION="$("$TF" output -raw aws_region 2>/dev/null || echo "ap-northeast-1")"
 
 STATE="$(aws ec2 describe-instances \

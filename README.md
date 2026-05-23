@@ -17,11 +17,11 @@ SSH は Tailscale SSH 経由、緊急時は SSM Session Manager。
 | インスタンス | t4g.micro (ARM/Graviton) — 変更可 |
 | AMI | Amazon Linux 2023 (arm64) — 最新を data lookup |
 | ネットワーク | default VPC / default subnet |
-| Public IP | Elastic IP (起動中インスタンスにアタッチ中は無料) |
+| Public IP | Elastic IP (固定。2024/2 以降 AWS は全 public IPv4 を $0.005/h 課金、起動/停止問わず) |
 | Security Group | **inbound 0 ルール** / egress 全許可 |
 | シークレット | SSM Parameter Store (SecureString) |
 | アクセス | Tailscale SSH + SSM Session Manager |
-| 自動更新 | `dnf-automatic` 有効 |
+| 自動更新 | `dnf-automatic` (現 AL2023 release 内のパッチのみ。新 release への移行は手動) |
 
 ランニングコスト目安 (東京): **約 $4/月〜** (転送量で変動)
 
@@ -29,7 +29,7 @@ SSH は Tailscale SSH 経由、緊急時は SSM Session Manager。
 
 - macOS / Linux のシェル
 - `aws` CLI (v2) ログイン済み: `aws sts get-caller-identity` でアカウント確認
-- `terraform` >= 1.6 (なければ `brew install hashicorp/tap/terraform` または `brew install opentofu` で `tofu` 使用)
+- `tofu` (OpenTofu) または `terraform` >= 1.6 — このリポジトリは **OpenTofu-first** (`.terraform.lock.hcl` が `registry.opentofu.org` 向けに固定済み)。`scripts/tf.sh` は `tofu` を優先し、無ければ `terraform` にフォールバック。インストール: `brew install opentofu` (推奨) または `brew install hashicorp/tap/terraform`
 - Tailscale アカウント
 
 ## セットアップ
@@ -155,7 +155,24 @@ Tailscale が壊れた・誤って `tailscale down` した時の保険。
 - **IMDSv2 必須**: メタデータサービスのトークン化
 - **SSM SecureString + 最小権限 IAM**: auth key を平文で持たない
 - **EBS 暗号化**: 既定で有効化
-- **自動更新**: `dnf-automatic.timer`
+- **自動更新**: `dnf-automatic.timer` (現 AL2023 release 内のパッチのみ — 下記参照)
+
+## メンテナンス (AL2023 release 更新)
+
+`terraform/main.tf` の `aws_instance.exit_node` に `lifecycle.ignore_changes = [ami]` を入れているので、Amazon が新しい AL2023 AMI を出しても `apply` で勝手に instance が replace されません。これは「毎回 apply で作り直されるのが鬱陶しい」を防ぐためですが、副作用として **新 AL2023 release への移行は手動** になります。
+
+| 何が起きるか | 誰がやるか |
+|---|---|
+| 現 release 内の package CVE / セキュリティパッチ | `dnf-automatic` が自動適用 |
+| 新 AL2023 release への移行 (新 kernel、新パッケージ群) | **手動** (下記コマンド) |
+
+数ヶ月に一度、または注目すべき AL2023 release が出たタイミングで:
+
+```bash
+./scripts/tf.sh apply -replace=aws_instance.exit_node
+```
+
+instance が最新 AMI で作り直されます (EIP は保持)。user_data が再実行されて Tailscale も再登録されます。
 
 ## クリーンアップ
 
