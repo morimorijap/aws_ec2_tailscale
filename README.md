@@ -17,11 +17,11 @@ SSH は Tailscale SSH 経由、緊急時は SSM Session Manager。
 | インスタンス | t4g.micro (ARM/Graviton) — 変更可 |
 | AMI | Amazon Linux 2023 (arm64) — 最新を data lookup |
 | ネットワーク | default VPC / default subnet |
-| Public IP | Elastic IP (起動中インスタンスにアタッチ中は無料) |
+| Public IP | Elastic IP (固定。2024/2 以降 AWS は全 public IPv4 を $0.005/h 課金、起動/停止問わず) |
 | Security Group | **inbound 0 ルール** / egress 全許可 |
 | シークレット | SSM Parameter Store (SecureString) |
 | アクセス | Tailscale SSH + SSM Session Manager |
-| 自動更新 | `dnf-automatic` 有効 |
+| 自動更新 | `dnf-automatic` (現 AL2023 release 内のパッチのみ。新 release への移行は手動) |
 
 ランニングコスト目安 (東京): **約 $4/月〜** (転送量で変動)
 
@@ -29,7 +29,7 @@ SSH は Tailscale SSH 経由、緊急時は SSM Session Manager。
 
 - macOS / Linux のシェル
 - `aws` CLI (v2) ログイン済み: `aws sts get-caller-identity` でアカウント確認
-- `terraform` >= 1.6 (なければ `brew install hashicorp/tap/terraform` または `brew install opentofu` で `tofu` 使用)
+- `tofu` (OpenTofu) または `terraform` >= 1.6 — このリポジトリは **OpenTofu-first** (`.terraform.lock.hcl` が `registry.opentofu.org` 向けに固定済み)。`scripts/tf.sh` は `tofu` を優先し、無ければ `terraform` にフォールバック。インストール: `brew install opentofu` (推奨) または `brew install hashicorp/tap/terraform`
 - Tailscale アカウント
 
 ## セットアップ
@@ -95,6 +95,42 @@ curl ifconfig.me   # → terraform output の public_ip と一致するはず
 
 `apply` 後の output 値そのもの。EIP は `destroy` するまで変わりません。
 
+## 使う時だけ起動する (start/stop)
+
+`destroy` せずインスタンスだけ stop すれば compute 料金はゼロになります
+(EBS と EIP は付与されている限り常時課金、計 ~$4/月)。
+
+```bash
+./scripts/up.sh      # 起動
+# ... 使う ...
+./scripts/down.sh    # 停止
+```
+
+Tailscale daemon は systemd で auto-start に入っているので、`up.sh` 後
+30 秒ほどで tailnet に再登場します。
+
+### exit node を使っている時の注意点
+
+- **`down.sh` の前後でクライアントの exit-node 設定を外す**: `--exit-node=aws-exit-node` のまま EC2 を止めると、止まった node に通信を投げ続けてインターネットが繋がらなくなります。
+  ```bash
+  tailscale set --exit-node=     # 解除 (down の前 or 後すぐ)
+  ```
+  iOS / Android はアプリの "Exit Node" メニューで OFF。
+- **Tailscale admin 画面の表示は遅れる**: `down.sh` 直後に [admin → Machines](https://login.tailscale.com/admin/machines) を見ると暫く "Connected" のままに見えますが、これは keepalive のタイムアウト待ち (5〜15 分)。AWS 側で本当に止まっているかは下記で確認できます。
+  ```bash
+  aws ec2 describe-instances \
+    --instance-ids $(./scripts/tf.sh output -raw instance_id) \
+    --region     $(./scripts/tf.sh output -raw aws_region) \
+    --query 'Reservations[0].Instances[0].State.Name' --output text
+  # → stopped / running / stopping / pending
+  ```
+  `up.sh` / `down.sh` が表示する `current state:` 行も同じ値です。
+- **public IP (EIP) は止めても保持**: 再起動しても同じ IP。EIP の課金は停止中でも発生 (~$3.6/月)。完全に課金を消したい場合は `./scripts/tf.sh destroy`。
+
+> **Note:** 既に `apply` 済みの場合、`aws_region` output が追加されたので
+> `./scripts/tf.sh apply` を一度走らせて output を refresh してください
+> (リソース変更はありません)。
+
 ## アクセス手段
 
 ### Tailscale SSH (常用)
@@ -119,7 +155,24 @@ Tailscale が壊れた・誤って `tailscale down` した時の保険。
 - **IMDSv2 必須**: メタデータサービスのトークン化
 - **SSM SecureString + 最小権限 IAM**: auth key を平文で持たない
 - **EBS 暗号化**: 既定で有効化
-- **自動更新**: `dnf-automatic.timer`
+- **自動更新**: `dnf-automatic.timer` (現 AL2023 release 内のパッチのみ — 下記参照)
+
+## メンテナンス (AL2023 release 更新)
+
+`terraform/main.tf` の `aws_instance.exit_node` に `lifecycle.ignore_changes = [ami]` を入れているので、Amazon が新しい AL2023 AMI を出しても `apply` で勝手に instance が replace されません。これは「毎回 apply で作り直されるのが鬱陶しい」を防ぐためですが、副作用として **新 AL2023 release への移行は手動** になります。
+
+| 何が起きるか | 誰がやるか |
+|---|---|
+| 現 release 内の package CVE / セキュリティパッチ | `dnf-automatic` が自動適用 |
+| 新 AL2023 release への移行 (新 kernel、新パッケージ群) | **手動** (下記コマンド) |
+
+数ヶ月に一度、または注目すべき AL2023 release が出たタイミングで:
+
+```bash
+./scripts/tf.sh apply -replace=aws_instance.exit_node
+```
+
+instance が最新 AMI で作り直されます (EIP は保持)。user_data が再実行されて Tailscale も再登録されます。
 
 ## クリーンアップ
 
@@ -151,7 +204,9 @@ Tailscale 側の machine は手動削除 ([admin → Machines](https://login.tai
 ├── .env.example               # .env のテンプレート
 ├── .env                       # tailscale_authkey (git ignored)
 ├── scripts/
-│   └── tf.sh                  # .env -> TF_VAR_* 変換ラッパー
+│   ├── tf.sh                  # .env -> TF_VAR_* 変換ラッパー
+│   ├── up.sh                  # EC2 を start (使う時)
+│   └── down.sh                # EC2 を stop (使い終わったら)
 └── terraform/
     ├── versions.tf
     ├── variables.tf

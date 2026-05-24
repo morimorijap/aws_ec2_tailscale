@@ -123,6 +123,22 @@ resource "aws_instance" "exit_node" {
     encrypted   = true
   }
 
+  lifecycle {
+    # AMI lookup uses most_recent = true. Without ignore_changes, every
+    # new AL2023 image Amazon publishes would force a full instance
+    # replacement on the next apply.
+    #
+    # Tradeoff: dnf-automatic keeps the *current* AL2023 release patched
+    # (package CVEs), but does NOT move to a newer AL2023 release —
+    # new kernels and release-level updates require an intentional refresh:
+    #
+    #   ./scripts/tf.sh apply -replace=aws_instance.exit_node
+    #
+    # Plan to do this every few months, or whenever a notable AL2023
+    # release lands.
+    ignore_changes = [ami]
+  }
+
   tags = {
     Name = var.project_name
   }
