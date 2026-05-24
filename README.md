@@ -29,6 +29,7 @@ SSH は Tailscale SSH 経由、緊急時は SSM Session Manager。
 
 - macOS / Linux のシェル
 - `aws` CLI (v2) ログイン済み: `aws sts get-caller-identity` でアカウント確認
+- `jq` — `up.sh` / `down.sh` が terraform output を一括取得して parse する。`brew install jq`
 - `tofu` (OpenTofu) または `terraform` >= 1.6 — このリポジトリは **OpenTofu-first** (`.terraform.lock.hcl` が `registry.opentofu.org` 向けに固定済み)。`scripts/tf.sh` は `tofu` を優先し、無ければ `terraform` にフォールバック。インストール: `brew install opentofu` (推奨) または `brew install hashicorp/tap/terraform`
 - Tailscale アカウント
 

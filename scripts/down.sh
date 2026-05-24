@@ -2,19 +2,33 @@
 # Stop the EC2 exit node (no compute charge while stopped).
 # EBS and EIP keep their hourly charge.
 #
-# Usage: ./scripts/down.sh
+# Usage:    ./scripts/down.sh
+# Requires: aws CLI, jq, opentofu (or terraform)
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TF="${ROOT_DIR}/scripts/tf.sh"
 
-INSTANCE_ID="$("$TF" output -raw instance_id 2>/dev/null || true)"
+# Fetch all terraform outputs in one call (see comment in up.sh).
+OUTPUTS_JSON="$("$TF" output -json 2>/dev/null || true)"
+if [[ -z "$OUTPUTS_JSON" || "$OUTPUTS_JSON" == "{}" ]]; then
+  echo "ERROR: terraform state has no outputs. Run './scripts/tf.sh apply' first." >&2
+  exit 1
+fi
+
+INSTANCE_ID="$(jq -r '.instance_id.value // empty' <<<"$OUTPUTS_JSON")"
+REGION="$(   jq -r '.aws_region.value  // empty' <<<"$OUTPUTS_JSON")"
+
 if [[ -z "$INSTANCE_ID" ]]; then
   echo "ERROR: instance_id not found in terraform state." >&2
   echo "       Run './scripts/tf.sh apply' first (or the instance was destroyed)." >&2
   exit 1
 fi
-REGION="$("$TF" output -raw aws_region 2>/dev/null || echo "ap-northeast-1")"
+if [[ -z "$REGION" ]]; then
+  echo "WARN: aws_region output missing (old state file?)." >&2
+  echo "      Run './scripts/tf.sh apply' to refresh; falling back to ap-northeast-1." >&2
+  REGION="ap-northeast-1"
+fi
 
 STATE="$(aws ec2 describe-instances \
   --instance-ids "$INSTANCE_ID" \

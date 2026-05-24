@@ -1,19 +1,37 @@
 #!/usr/bin/env bash
 # Start the EC2 exit node and wait until it's running.
 #
-# Usage: ./scripts/up.sh
+# Usage:    ./scripts/up.sh
+# Requires: aws CLI, jq, opentofu (or terraform)
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TF="${ROOT_DIR}/scripts/tf.sh"
 
-INSTANCE_ID="$("$TF" output -raw instance_id 2>/dev/null || true)"
+# Fetch all terraform outputs in one call. Each tf.sh invocation sources
+# .env and refreshes AWS creds (~1-3s), so one -json call is much faster
+# than four -raw calls.
+OUTPUTS_JSON="$("$TF" output -json 2>/dev/null || true)"
+if [[ -z "$OUTPUTS_JSON" || "$OUTPUTS_JSON" == "{}" ]]; then
+  echo "ERROR: terraform state has no outputs. Run './scripts/tf.sh apply' first." >&2
+  exit 1
+fi
+
+INSTANCE_ID="$(jq -r '.instance_id.value      // empty' <<<"$OUTPUTS_JSON")"
+REGION="$(   jq -r '.aws_region.value         // empty' <<<"$OUTPUTS_JSON")"
+PUBLIC_IP="$(jq -r '.public_ip.value          // empty' <<<"$OUTPUTS_JSON")"
+HOSTNAME="$( jq -r '.tailscale_hostname.value // empty' <<<"$OUTPUTS_JSON")"
+
 if [[ -z "$INSTANCE_ID" ]]; then
   echo "ERROR: instance_id not found in terraform state." >&2
   echo "       Run './scripts/tf.sh apply' first to create the instance." >&2
   exit 1
 fi
-REGION="$("$TF" output -raw aws_region 2>/dev/null || echo "ap-northeast-1")"
+if [[ -z "$REGION" ]]; then
+  echo "WARN: aws_region output missing (old state file?)." >&2
+  echo "      Run './scripts/tf.sh apply' to refresh; falling back to ap-northeast-1." >&2
+  REGION="ap-northeast-1"
+fi
 
 STATE="$(aws ec2 describe-instances \
   --instance-ids "$INSTANCE_ID" \
@@ -42,9 +60,6 @@ case "$STATE" in
     exit 1
     ;;
 esac
-
-PUBLIC_IP="$("$TF" output -raw public_ip)"
-HOSTNAME="$("$TF" output -raw tailscale_hostname)"
 
 echo
 echo "public IP : $PUBLIC_IP"
